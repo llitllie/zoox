@@ -1,0 +1,52 @@
+{
+    "name": "llitllie/swoole-zookeeper-sample",
+    "type": "library",
+    "description": "Swoole Zookeeper Sample",
+    "keywords": [
+        "Swoole",
+        "Zookeeper"
+    ],
+    "license": "MIT",
+    "homepage": "https://github.com/llitllie/swoole-zookeeper-sample.git",
+    "authors": [{
+        "name": "Channing",
+        "email": "llitllie@gmail.com",
+        "homepage": "https://github.com/llitllie/swoole-zookeeper-sample.git"
+    }],
+    "require": {
+        "php": "^7.2",
+        "ext-swoole": "^4.3.4",
+        "ext-zookeeper": "^0.7.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^8",
+        "phpstan/phpstan": "^0.11.8",
+        "friendsofphp/php-cs-fixer": "^2.15",
+        "swoole/ide-helper": "@dev"
+    },
+    "scripts": {
+        "static-analyse-src": [
+            "phpstan analyze src -l 7 --ansi"
+        ],
+        "cs-analyse": [
+            "php-cs-fixer fix -v --dry-run --diff --stop-on-violation --ansi"
+        ],
+        "analyse": [
+            "@static-analyse-src",
+            "@cs-analyse"
+        ],
+        "test": [
+            "@analyse",
+            "@unit-tests"
+        ],
+        "unit-tests": [
+            "phpunit tests --testdox --colors=always"
+        ],
+        "fix": "php-cs-fixer fix -v --ansi"
+    },
+    "suggest": {
+        "ext-uv": "^0.2.4",
+        "ext-ev": "^1.0.6",
+        "ext-event": "^2.5.3"
+    }
+}
