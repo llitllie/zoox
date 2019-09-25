@@ -24,6 +24,16 @@
         "friendsofphp/php-cs-fixer": "^2.15",
         "swoole/ide-helper": "@dev"
     },
+    "autoload": {
+        "psr-4": {
+            "Zoox\\": "src\\Zoox"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests"
+        }
+    },
     "scripts": {
         "static-analyse-src": [
             "phpstan analyze src -l 7 --ansi"
