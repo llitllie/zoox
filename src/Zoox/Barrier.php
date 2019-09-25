@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Zoox;
 
-
 class Barrier extends Base
 {
     private $path;
@@ -20,22 +19,25 @@ class Barrier extends Base
         if (!$this->isExist($this->path)) {
             return $this->makePath($this->path);
         }
+
         return true;
     }
 
     public function remove(): bool
     {
-        if ($this->isExist($this->path) === false) {
+        if (false === $this->isExist($this->path)) {
             return true;
         }
+
         return $this->deletePath($this->path);
     }
 
     public function isOpen(): bool
     {
-        if ($this->isExist($this->path) === false) {
+        if (false === $this->isExist($this->path)) {
             return true;
         }
+
         return false;
     }
 
@@ -43,16 +45,15 @@ class Barrier extends Base
     {
         $this->callback = $callable;
         if ($this->isOpen()) {
-            return \call_user_func_array($this->callback , [$this->path]);
-        } else {
-            $this->getZookeeper()->exists($this->path, [$this, 'callback']);
+            return \call_user_func_array($this->callback, [$this->path]);
         }
+        $this->getZookeeper()->exists($this->path, [$this, 'callback']);
     }
 
-    public function callback(int $eventType, int $state, string $name)
+    public function callback(int $eventType, int $state, string $name): void
     {
-        if ($eventType === \Zookeeper::DELETED_EVENT) {
-            \call_user_func_array($this->callback , [$this->path]);
+        if (\Zookeeper::DELETED_EVENT === $eventType) {
+            \call_user_func_array($this->callback, [$this->path]);
         } else {
             $this->getZookeeper()->exists($this->path, [$this, 'callback']);
         }

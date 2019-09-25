@@ -9,9 +9,10 @@ $barrier->setZookeeper($zk);
 
 $barrier->process(function($path) {
     echo "barrier ".$path." was removed".PHP_EOL;
-    exit();
+    //exit();
 });
 
-while(true) {
-    sleep(1);
-}
+Swoole\Timer::tick(100, function () {
+    //\zookeeper_dispatch();
+});
+Swoole\Event::wait();

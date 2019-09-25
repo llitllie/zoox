@@ -20,9 +20,10 @@ class Base
 
     public function isExist(string $path): bool
     {
-        if ($this->getZookeeper()->exists($path) === false) {
+        if (false === $this->getZookeeper()->exists($path)) {
             return false;
         }
+
         return true;
     }
 

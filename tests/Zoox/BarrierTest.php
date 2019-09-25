@@ -14,7 +14,7 @@ class BarrierTest extends TestCase
         $root = '/test/barrier';
         $zk = new \Zookeeper(\getenv('ZOOKEEPER_CONNECTION'));
 
-        $barrier  = new Barrier($root);
+        $barrier = new Barrier($root);
         $barrier->setZookeeper($zk);
         $this->assertTrue($barrier->isOpen());
         $this->assertTrue($barrier->block());

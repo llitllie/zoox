@@ -8,5 +8,5 @@ $barrier  = new Barrier($root);
 $barrier->setZookeeper($zk);
 
 $barrier->block();
-sleep(25);
+sleep(15);
 $barrier->remove();
