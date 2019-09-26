@@ -41,7 +41,7 @@ class Barrier extends Base
         return false;
     }
 
-    public function process(callable $callable)
+    public function pass(callable $callable)
     {
         $this->callback = $callable;
         if ($this->isOpen()) {

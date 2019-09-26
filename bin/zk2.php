@@ -14,5 +14,5 @@ $acl = array(
 
 $zk = new \Zookeeper($host);
 
-//$zk->set($path, "update2");
-$zk->delete($path);
+$zk->set($path, "update1");
+//$zk->delete($path);
