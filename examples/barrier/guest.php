@@ -7,7 +7,7 @@ $root = '/examples/barrier';
 $barrier  = new Barrier($root);
 $barrier->setZookeeper($zk);
 
-$barrier->pass(function($path) {
+$barrier->process(function($path) {
     echo "barrier ".$path." was removed".PHP_EOL;
     //exit();
 });
