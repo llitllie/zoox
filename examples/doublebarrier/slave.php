@@ -9,12 +9,12 @@ $barrier->setZookeeper($zk);
 
 
 $barrier->enter(function($path) {
-    sleep(1);
-    echo 'slave enter'.PHP_EOL;
+    //usleep(600000);
+    echo 'slave enter: '.time().PHP_EOL;
 });
 
 $barrier->leave(function($path) {
-    echo 'slave leave'.PHP_EOL;
+    echo 'slave leave: '.time().PHP_EOL;
 });
 
 
