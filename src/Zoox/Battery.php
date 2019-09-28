@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Zoox;
 
-
 class Battery extends Base
 {
     private $path;
@@ -18,7 +17,7 @@ class Battery extends Base
         $this->size = $size;
     }
 
-    public function connect()
+    public function connect(): void
     {
         if (!$this->isExist($this->path)) {
             $this->makePath($this->path);
@@ -35,13 +34,13 @@ class Battery extends Base
         $this->znode = \str_replace($this->path.'/', '', $this->znode);
     }
 
-    public function process(callable $callback)
+    public function process(callable $callback): void
     {
         $this->callback = $callback;
         $this->_process();
     }
 
-    private function _process()
+    private function _process(): void
     {
         $children = $this->getZookeeper()->getChildren($this->path);
         if (!empty($children)) {
@@ -53,7 +52,7 @@ class Battery extends Base
         }
     }
 
-    public function callback(int $eventType, int $state, string $name)
+    public function callback(int $eventType, int $state, string $name): void
     {
         $this->_process();
     }

@@ -4,24 +4,31 @@ declare(strict_types=1);
 
 namespace Zoox;
 
-class Coroutine {
-    private $enable = 1;
+class Coroutine
+{
+    private $enable = true;
     private $gen;
 
-    public function wait(callable $callback)
+    public function wait(callable $callback): void
     {
-        $callable = function() use ($callback) {
-            while(true) {
+        $callable = function () use ($callback) {
+            while (true) {
                 $data = yield;
-                if ($this->enable) call_user_func_array($callback, [$data]);
+                if ($this->enable) {
+                    \call_user_func_array($callback, [$data]);
+                }
             }
         };
         $this->gen = $callable();
     }
 
-    public function notify($data = NULL) 
+    public function notify($data = null): void
     {
         $this->gen->send($data);
     }
 
- }
+    public function disable(): void
+    {
+        $this->enable = false;
+    }
+}

@@ -18,7 +18,7 @@ class DoubleBarrier extends Base
     {
         $this->path = $path;
         $this->size = $size;
-        $this->readyPath = $this->path."/ready";
+        $this->readyPath = $this->path.'/ready';
     }
 
     public function enter(callable $readyCallback): void
@@ -28,7 +28,9 @@ class DoubleBarrier extends Base
         if (!$this->isExist($this->path)) {
             $this->makePath($this->path);
         }
-        if($this->isExist($this->readyPath)) $this->deletePath($this->readyPath);
+        if ($this->isExist($this->readyPath)) {
+            $this->deletePath($this->readyPath);
+        }
         $state = $this->getZookeeper()->exists($this->readyPath, [$this, 'readyCallback']);
         $acls = [
             [
@@ -60,15 +62,17 @@ class DoubleBarrier extends Base
         $this->leaveCallback = $leaveCallback;
         //leaveCallback will be triggered after ready(nearby readyCallback)
         //if listen to children change, must calculate the node number itself
-        //it's the last one to enter, leave directly, no one can trigger it 
+        //it's the last one to enter, leave directly, no one can trigger it
         $children = $this->getZookeeper()->getChildren($this->path, [$this, 'leaveCallback']);
         if ($this->isReady) {
             //TODO: not sure way, but need wait for smaller nodes to process enter callback(no need to wait it complete)
             //look like ready notifcation takes 1 second, so when leave notifcation comes right after (>0.6 seconds)
-            sleep(1);
+            //maybe it's due to the sleep in process
+            \sleep(1);
             $this->deletePath($this->path.'/'.$this->znode);
         }
     }
+
     public function leaveCallback(int $eventType, int $state, string $name): void
     {
         //TODO every time child nodes changed, it's triggered, includes add ready/remove others, should only listen to child_delete
@@ -77,7 +81,7 @@ class DoubleBarrier extends Base
             if ($this->isReady) {
                 $children = $this->getZookeeper()->getChildren($this->path);
                 //the last one is "/ready" node
-                if (\count($children) === 1) {
+                if (1 === \count($children)) {
                     \call_user_func_array($this->leaveCallback, [$this->path]);
                 } else {
                     $max = -1;
