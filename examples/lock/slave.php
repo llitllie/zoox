@@ -8,8 +8,11 @@ $slave = new Lock($root);
 $slave->setZookeeper($zk);
 
 
-$slave->aquire();
-echo time()." : slave aquired".PHP_EOL;
-sleep(5);
-$slave->release();
-echo time()." : slave release".PHP_EOL;
+echo time()." : salve acquire".PHP_EOL;
+$slave->process(function($path) {
+    echo time().' : slave '.PHP_EOL;
+});
+
+while (true) {
+    usleep(500);
+}

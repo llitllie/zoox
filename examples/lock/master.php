@@ -8,8 +8,12 @@ $master = new Lock($root);
 $master->setZookeeper($zk);
 
 
-$master->aquire();
-echo time()." : master aquired".PHP_EOL;
-sleep(5);
-$master->release();
-echo time()." : master release".PHP_EOL;
+echo time()." : master acquire".PHP_EOL;
+$master->process(function($path) {
+    echo time().' : master '.PHP_EOL;
+    sleep(5);
+});
+
+while (true) {
+    usleep(500);
+}

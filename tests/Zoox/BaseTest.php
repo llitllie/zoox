@@ -23,5 +23,6 @@ class BaseTest extends TestCase
         $this->assertTrue($base->makePath($node));
         $this->assertTrue($base->makeNode($root.'/002', ''));
         $this->assertTrue($base->deletePath($node));
+        $this->assertTrue($base->deletePath('/examples/transaction'));
     }
 }

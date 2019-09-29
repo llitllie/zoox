@@ -72,7 +72,7 @@ class Queue extends Base
         if (!$this->isExist($this->path)) {
             $this->makePath($this->path);
         }
-        //manulay trigger it
+        //manulay trigger it, should code here instead of callback because callback will trigger a hook first
         $this->callback(\Zookeeper::CREATED_EVENT, \Zookeeper::CONNECTED_STATE, $this->path);
     }
 
@@ -94,7 +94,7 @@ class Queue extends Base
                 $data = $this->getZookeeper()->get($znode);
                 $result = $this->deletePath($znode);
                 if ($result) {
-                    //if we don't care the first callback(2th execute before 1st) then just call it directly
+                    //if we don't care the first callback(2th execute before 1st) then just call it directly => maybe it's due to manually call
                     //\call_user_func_array($this->callback, [$znode.':'.$data]);
                     //when deletePath, it trigger callback again, so it goes back and executed first
                     //below codes make it in order
