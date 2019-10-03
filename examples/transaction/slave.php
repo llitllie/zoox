@@ -9,6 +9,8 @@ $slave->setZookeeper($zk);
 
 $slave->join();
 
+//$slave->execute('something S');
+
 while (true) {
     usleep(500);
 }

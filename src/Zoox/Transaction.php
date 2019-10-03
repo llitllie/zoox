@@ -11,16 +11,26 @@ class Transaction extends Base
     private $participantNode;
     private $transactionPath;
     private $participantChannel;
+    private $znode;
 
     private $participants = [];
     private $transaction;
     private $transactionStatus = [];
 
-    public const STATUS_INITIAL = 999;
+    private $body = '';
+    private $acls = [
+        [
+            'perms' => \Zookeeper::PERM_ALL,
+            'scheme' => 'world',
+            'id' => 'anyone',
+        ],
+    ];
+
+    public const STATUS_INITIAL = 0;
     public const STATUS_ABORT = 1;
     public const STATUS_AGREEMENT = 2;
-    public const STATUS_COMMIT = 3;
-    public const STATUS_ROLLBACK = 4;
+    public const STATUS_COMMIT = 4;
+    public const STATUS_ROLLBACK = 8;
     public const TIMEOUT = 5;
 
     public function __construct(string $path)
@@ -38,17 +48,12 @@ class Transaction extends Base
                 $this->makePath($this->participantPath);
             }
 
-            $acls = [
-                [
-                    'perms' => \Zookeeper::PERM_ALL,
-                    'scheme' => 'world',
-                    'id' => 'anyone',
-                ],
-            ];
 
-            $this->participantNode = $this->participantPath.'/'.UUID::generate();
+            $this->znode = UUID::generate();
+            $this->participantNode = $this->participantPath.'/'.$this->znode;
+            echo "participantNode: ".$this->participantNode.PHP_EOL;
 
-            $this->getZookeeper()->create($this->participantNode, '', $acls, 0);
+            $this->getZookeeper()->create($this->participantNode, '', $this->acls, 0);
 
             $this->participantChannel = new Queue($this->participantNode);
             $this->participantChannel->setZookeeper($this->getZookeeper());
@@ -61,9 +66,14 @@ class Transaction extends Base
         $children = $this->getZookeeper()->getChildren($this->participantPath, [$this, 'participateCallback']);
         if (!empty($children)) {
             foreach ($children as $child) {
-                $channel = new Queue($this->participantPath.'/'.$child);
-                $channel->setZookeeper($this->getZookeeper());
-                $this->participants[$child] = $channel;
+                //also add itself
+                if ($child === $child) {
+                    $this->participants[$child] = $this->participantChannel;
+                } else {
+                    $channel = new Queue($this->participantPath.'/'.$child);
+                    $channel->setZookeeper($this->getZookeeper());
+                    $this->participants[$child] = $channel;
+                }
             }
         }
     }
@@ -79,24 +89,31 @@ class Transaction extends Base
 
     public function prepareCallback($data): void
     {
+        echo time().": preparecallback: ".$data.PHP_EOL;
         [$znode, $uuid] = $this->parse($data);
         //prepare
+        $this->getZookeeper()->exists($this->transactionPath.'/'.$uuid.'/process', [$this, 'processCallback']);
+        $this->getZookeeper()->exists($this->transactionPath.'/'.$uuid.'/commit', [$this, 'commitCallback']);
+        $this->getZookeeper()->exists($this->transactionPath.'/'.$uuid.'/rollback', [$this, 'rollbackCallback']);
         $result = $this->prepare($data);
-        $this->transactionStatus[$uuid][$znode] = $result;
+        //$this->transactionStatus[$uuid][$znode] = $result;
         $this->getZookeeper()->set($data, (string) $result);
+        //quit quickly
         //if ($result === self::STATUS_ABORT) //prepare rollback;
-        $this->getZookeeper()->exists($this->transactionPath.'/'.$uuid.'/process');
     }
 
     public function processCallback(int $eventType, int $state, string $name): void
     {
+        //it's ready node, so znode should use itself
         if (\Zookeeper::CREATED_EVENT === $eventType) {
             [$znode, $uuid] = $this->parse($name);
+            $body = $this->getZookeeper()->get($name);
             //process
-            $result = $this->process($uuid);
-            $this->getZookeeper()->set($name, $result);
-            $this->getZookeeper()->exists($this->transactionPath.'/'.$uuid.'/commit');
-            $this->getZookeeper()->exists($this->transactionPath.'/'.$uuid.'/rollback');
+            $path = $this->transactionPath."/".$uuid."/".$this->znode;
+            $this->getZookeeper()->set($path, (string) self::STATUS_INITIAL);
+            $result = $this->process($body);
+            echo time().": processCallback: ".$path." - ".$result.PHP_EOL;
+            $this->getZookeeper()->set($path, (string) $result);
         }
     }
 
@@ -136,18 +153,19 @@ class Transaction extends Base
     {
         $flag = true;
         do {
-            $uuid = UUID::generate();
-            $path = $this->transactionPath.'/'.$uuid;
+            $tansId = UUID::generate();
+            $path = $this->transactionPath.'/'.$tansId;
             if (!$this->isExist($path)) {
                 //prepare
                 if ($this->makePath($path)) {
                     if (!empty($this->participants)) {
-                        $this->transactionStatus[$uuid] = [];
+                        $this->transactionStatus[$tansId] = [];
                         foreach ($this->participants as $znode => $channel) {
                             $transPath = $path.'/'.$znode;
                             $this->makePath($transPath);
-                            $this->transactionStatus[$uuid][$znode] = self::STATUS_INITIAL;
-                            $this->getZookeeper()->get($transPath, [$this, 'askCallback']);
+                            $this->transactionStatus[$tansId][$znode] = self::STATUS_INITIAL;
+                            echo time().": notify: ".$transPath.PHP_EOL;
+                            $this->getZookeeper()->exists($transPath, [$this, 'askCallback']);
                             $channel->enqueue($transPath);
                         }
                     }
@@ -158,24 +176,26 @@ class Transaction extends Base
             }
         } while ($flag);
 
-        $this->transaction->enqueue($uuid);
+        $this->transaction->enqueue($tansId);
     }
-
     public function askCallback(int $eventType, int $state, string $name): void
     {
+        //lead receives prepare/process callback, update participant status
         $result = $this->getZookeeper()->get($name, [$this, 'askCallback']);
+        echo time().": receive from ".$name." : ".$result.PHP_EOL;
         if (!empty($result)) {
             [$znode, $uuid] = $this->parse($name);
             $this->transactionStatus[$uuid][$znode] = (int) $result;
         }
     }
 
-    public function mark(): void
+    public function wait(): void
     {
         $uuid = $this->transaction->dequeue();
         $start = \time();
+        $secondPhase = self::STATUS_INITIAL;
+        $firstPhase = self::STATUS_INITIAL;
         do {
-            $firstPhase = self::STATUS_INITIAL;
             $transStatus = $this->transactionStatus[$uuid];
             foreach ($transStatus as $status) {
                 if ((self::STATUS_ABORT === $status) || (self::STATUS_INITIAL === $status)) {
@@ -185,7 +205,7 @@ class Transaction extends Base
                 $firstPhase = self::STATUS_AGREEMENT;
             }
 
-            if (self::STATUS_AGREEMENT === $firstPhase) {
+            if ((self::STATUS_AGREEMENT === $firstPhase) || (self::STATUS_ABORT === $firstPhase)) {
                 break;
             }
             if ((\time() - $start) > self::TIMEOUT) {
@@ -194,20 +214,18 @@ class Transaction extends Base
             \usleep(500);
         } while (true);
         if (self::STATUS_AGREEMENT === $firstPhase) {
-            $rollback = true;
-            $this->makePath($this->transactionPath.'/'.$uuid.'/process');
-            //process myself
+            //$this->makePath($this->transactionPath.'/'.$uuid.'/process');
+            $this->getZookeeper()->create($this->transactionPath.'/'.$uuid.'/process', $this->body, $this->acls, 0);
             do {
-                $secondPhase = self::STATUS_INITIAL;
                 $transStatus = $this->transactionStatus[$uuid];
                 foreach ($transStatus as $status) {
                     $secondPhase = $status;
-                    if (self::STATUS_ROLLBACK === $status) {
+                    if ((self::STATUS_ROLLBACK === $status) || (self::STATUS_INITIAL === $status)) {
                         break;
                     }
                 }
 
-                if (self::STATUS_ROLLBACK === $secondPhase) {
+                if ((self::STATUS_ROLLBACK === $secondPhase) || (self::STATUS_COMMIT === $secondPhase)) {
                     break;
                 }
                 if ((\time() - $start) > self::TIMEOUT) {
@@ -216,19 +234,17 @@ class Transaction extends Base
                 \usleep(500);
             } while (true);
 
-            if (self::STATUS_COMMIT === $secondPhase) {
-                $rollback = false;
-                $this->makePath($this->transactionPath.'/'.$uuid.'/commit');
-            }
-            if ($rollback) {
-                $this->makePath($this->transactionPath.'/'.$uuid.'/rollback');
-            }
         }
-
-        $this->deletePath($this->transactionPath.'/'.$uuid);
+        if (self::STATUS_COMMIT === $secondPhase) {
+            $this->makePath($this->transactionPath.'/'.$uuid.'/commit');
+        } else {
+            $this->makePath($this->transactionPath.'/'.$uuid.'/rollback');
+        }
+        //should rollback or do nothing
+        //$this->deletePath($this->transactionPath.'/'.$uuid);
     }
 
-    public function proceed(string $body): void
+    public function execute(string $body): void
     {
         //start
         //prepare
@@ -236,8 +252,9 @@ class Transaction extends Base
         //process
         //mark commit/rollback
         //commit/rollback
+        $this->body = $body;
         $this->start();
-        $this->mark();
+        $this->wait();
     }
 
     public function prepare($data): int
@@ -249,9 +266,9 @@ class Transaction extends Base
 
     public function process($data)
     {
-        echo \time().': process'.PHP_EOL;
+        echo \time().': process->'.$data.PHP_EOL;
         //\call_user_func_array($this->processCallback, [$data]);
-        return self::STATUS_AGREEMENT;
+        return self::STATUS_COMMIT;
     }
 
     public function commit($data): void
@@ -262,12 +279,13 @@ class Transaction extends Base
 
     public function rollback($data): void
     {
-        echo \time().': process'.PHP_EOL;
+        echo \time().': rollback'.PHP_EOL;
         //\call_user_func_array($this->rollbackCallback, [$data]);
     }
 
     public function __destruct()
     {
-        $this->deletePath($this->participantPath.'/'.$this->participantNode);
+        //unset($this->participantChannel);
+        //$this->deletePath($this->participantNode);
     }
 }

@@ -9,9 +9,10 @@ $master->setZookeeper($zk);
 
 $master->join();
 //let slave join
-sleep(1);
+sleep(5);
 
-$master->proceed('something');
+$master->execute('something A');
+$master->execute('something B');
 
 while (true) {
     usleep(500);
